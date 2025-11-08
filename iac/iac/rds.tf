@@ -12,16 +12,15 @@ resource "aws_db_subnet_group" "database_subnet_group" {
 # create the rds instance
 resource "aws_db_instance" "database_instance" {
   engine                 = "mysql"
-  engine_version         = "8.0.39"
-  multi_az               = var.multi_az_deployment
+  engine_version         = "8.0.42"
   identifier             = var.database_instance_identifier
   username               = local.secrets.username
   password               = local.secrets.password
-  db_name                = local.secrets.rds_db_name
   instance_class         = var.database_instance_class
-  allocated_storage      = 200
+  allocated_storage      = 20
+  storage_type           = "gp2"
   db_subnet_group_name   = aws_db_subnet_group.database_subnet_group.name
-  vpc_security_group_ids = [aws_security_group.database_security_group.id, aws_security_group.runner_security_group.id]
+  vpc_security_group_ids = [aws_security_group.database_security_group.id]
   skip_final_snapshot    = true
   publicly_accessible    = var.publicly_accessible
 }
