@@ -17,7 +17,7 @@ secrets_manager_secret_name = "rosemarys-app-dev-secrets"
 
 # rds variables
 multi_az_deployment          = "false"
-database_instance_identifier = "app-db"
+database_instance_identifier = "app-db1"
 database_instance_class      = "db.t3.micro"
 publicly_accessible          = "false"
 
