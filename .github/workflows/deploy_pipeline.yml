@@ -35,6 +35,16 @@ jobs:
         working-directory: ./iac/iac
         run: terraform init
 
+      - name: Force unlock Terraform state
+        working-directory: ./iac/iac
+        run: |
+          # Get lock ID from state and force unlock if exists
+          LOCK_ID=$(aws s3 cp s3://rentzone-terraform-remote-state/rentzone/terraform.tfstate.lock - 2>/dev/null | jq -r '.ID' 2>/dev/null || echo "")
+          if [ ! -z "$LOCK_ID" ] && [ "$LOCK_ID" != "null" ]; then
+            terraform force-unlock -force "$LOCK_ID"
+          fi
+        continue-on-error: true
+
       - name: Run Terraform apply/destroy
         working-directory: ./iac/iac
         run: terraform ${{ env.TERRAFORM_ACTION }} -auto-approve
