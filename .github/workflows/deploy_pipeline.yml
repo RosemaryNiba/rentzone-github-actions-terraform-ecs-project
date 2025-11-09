@@ -31,13 +31,38 @@ jobs:
         with:
           terraform_version: 1.5.7
 
+      - name: List directory contents
+        run: |
+          echo "Repository structure:"
+          find . -name "*.tf" -type f
+          ls -la ./iac/
+          ls -la ./iac/iac/ || echo "iac/iac directory not found"
+
       - name: Run Terraform initialize
         working-directory: ./iac/iac
-        run: terraform init
+        run: |
+          echo "Initializing Terraform..."
+          # Remove any existing state files
+          rm -rf .terraform .terraform.lock.hcl terraform.tfstate* 2>/dev/null || true
+          # Initialize without backend first
+          terraform init -backend=false
+          # Then migrate to backend
+          terraform init -migrate-state -force-copy
+          echo "Terraform init completed"
+
+      - name: Run Terraform plan
+        working-directory: ./iac/iac
+        run: |
+          echo "Running Terraform plan..."
+          terraform plan
+          echo "Terraform plan completed"
 
       - name: Run Terraform apply
         working-directory: ./iac/iac
-        run: terraform apply -auto-approve
+        run: |
+          echo "Running Terraform apply..."
+          terraform apply -auto-approve
+          echo "Terraform apply completed"
 
 
 
