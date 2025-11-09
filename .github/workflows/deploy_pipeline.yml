@@ -54,7 +54,12 @@ jobs:
         working-directory: ./iac/iac
         run: |
           echo "Running Terraform plan..."
-          terraform plan
+          terraform plan -detailed-exitcode || {
+            echo "Terraform plan failed with exit code $?"
+            echo "Checking for validation errors..."
+            terraform validate
+            exit 1
+          }
           echo "Terraform plan completed"
 
       - name: Run Terraform apply
