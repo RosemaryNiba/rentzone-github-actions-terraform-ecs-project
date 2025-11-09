@@ -64,9 +64,10 @@ jobs:
           # Delete ECS services
           aws ecs update-service --cluster rentzone-dev-cluster --service rentzone-dev-service --desired-count 0 || echo "ECS service not found"
           aws ecs delete-service --cluster rentzone-dev-cluster --service rentzone-dev-service --force || echo "ECS service not found"
-          # Wait for RDS deletion
-          echo "Waiting for resources to be deleted..."
-          sleep 60
+          # Wait for RDS deletion to complete
+          echo "Waiting for RDS instance to be fully deleted..."
+          aws rds wait db-instance-deleted --db-instance-identifier app-db || echo "RDS instance already deleted"
+          echo "RDS deletion complete, proceeding with Terraform destroy"
         continue-on-error: true
 
       - name: Run Terraform apply/destroy
