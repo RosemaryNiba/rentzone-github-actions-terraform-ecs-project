@@ -188,3 +188,5 @@ jobs:
           IMAGE_NAME: ${{ needs.deploy_aws_infrastructure.outputs.image_name }}
         run: |
           aws ecr create-repository --repository-name ${{ env.IMAGE_NAME }} || echo "Repository already exists" 
+
+          
