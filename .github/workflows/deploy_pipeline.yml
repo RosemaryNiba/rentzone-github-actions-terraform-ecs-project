@@ -36,7 +36,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: 1.13.4
+          terraform_version: 1.13.5
 
       - name: Configure AWS credentials for Terraform
         uses: aws-actions/configure-aws-credentials@v4
@@ -54,6 +54,20 @@ jobs:
       - name: Run Terraform initialize
         working-directory: ./iac/iac
         run: terraform init -lock=false
+
+      - name: Pre-destroy cleanup
+        if: env.TERRAFORM_ACTION == 'destroy'
+        run: |
+          echo "Starting pre-destroy cleanup..."
+          # Delete RDS instance
+          aws rds delete-db-instance --db-instance-identifier app-db --skip-final-snapshot --delete-automated-backups || echo "RDS instance not found"
+          # Delete ECS services
+          aws ecs update-service --cluster rentzone-dev-cluster --service rentzone-dev-service --desired-count 0 || echo "ECS service not found"
+          aws ecs delete-service --cluster rentzone-dev-cluster --service rentzone-dev-service --force || echo "ECS service not found"
+          # Wait for RDS deletion
+          echo "Waiting for resources to be deleted..."
+          sleep 60
+        continue-on-error: true
 
       - name: Run Terraform apply/destroy
         working-directory: ./iac/iac
