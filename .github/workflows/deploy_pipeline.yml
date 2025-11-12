@@ -300,13 +300,19 @@ jobs:
   export_env_variables:
     name: Create environment file and export to S3 
     needs:
-      - configure_aws_credentials
       - deploy_aws_infrastructure
       - start_runner
       - build_and_push_image
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
     steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
       - name: Export environment variable values to file
         env:
           DOMAIN_NAME: ${{ needs.deploy_aws_infrastructure.outputs.domain_name }}
