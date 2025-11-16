@@ -177,7 +177,9 @@ jobs:
   # Start self-hosted EC2 runner
   start_runner:
     name: Start self-hosted EC2 runner
-    needs: deploy_aws_infrastructure
+    needs: 
+      - deploy_aws_infrastructure
+      - create_ecr_repository
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
     outputs:
@@ -211,11 +213,9 @@ jobs:
   # Create ECR repository
   create_ecr_repository:
     name: Create ECR repository
-    needs: 
-      - deploy_aws_infrastructure
-      - start_runner
+    needs: deploy_aws_infrastructure
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -291,8 +291,6 @@ jobs:
   export_env_variables:
     name: Create environment file and export to S3 
     needs:
-      - deploy_aws_infrastructure
-      - start_runner
       - build_and_push_image
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: self-hosted
@@ -332,9 +330,7 @@ jobs:
   migrate_data:
     name: Migrate data into RDS database with Flyway
     needs:
-      - deploy_aws_infrastructure
-      - start_runner
-      - build_and_push_image
+      - export_env_variables
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: self-hosted
     env:
@@ -392,7 +388,6 @@ jobs:
   stop_runner:
     name: Stop self-hosted EC2 runner
     needs:
-      - start_runner
       - migrate_data
     runs-on: ubuntu-latest
     if: always()
