@@ -359,6 +359,7 @@ jobs:
           echo "Download completed, extracting..."
           tar -xzf flyway-commandline-${{ env.FLYWAY_VERSION }}-linux-x64.tar.gz
           echo "Extraction completed, creating symlink..."
+          sudo rm -f /usr/local/bin/flyway
           sudo ln -s $(pwd)/flyway-${{ env.FLYWAY_VERSION }}/flyway /usr/local/bin/flyway
           echo "Flyway setup completed" 
 
