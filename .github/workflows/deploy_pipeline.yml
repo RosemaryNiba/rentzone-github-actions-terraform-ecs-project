@@ -393,6 +393,7 @@ jobs:
     name: Stop self-hosted EC2 runner
     needs:
       - start_runner
+      - migrate_data
     runs-on: ubuntu-latest
     if: always()
     steps:
