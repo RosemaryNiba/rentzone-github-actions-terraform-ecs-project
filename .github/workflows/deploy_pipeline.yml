@@ -201,7 +201,6 @@ jobs:
           ec2-instance-type: t3.micro
           subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.private_data_subnet_az1_id }}
           security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
-          iam-role-name: github-runner-role
           aws-resource-tags: >
             [
               {"Key": "Name", "Value": "github-runner"},
