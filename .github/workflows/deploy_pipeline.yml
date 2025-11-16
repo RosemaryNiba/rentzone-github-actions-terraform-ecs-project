@@ -174,12 +174,49 @@ jobs:
       env_file_bucket_name: ${{ env.ENV_FILE_BUCKET_NAME }}
 
 
-  # Create ECR repository
-  create_ecr_repository:
-    name: Create ECR repository
+  # Start self-hosted EC2 runner
+  start_runner:
+    name: Start self-hosted EC2 runner
     needs: deploy_aws_infrastructure
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ami-0c02fb55956c7d316
+          ec2-instance-type: t3.micro
+          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.private_data_subnet_az1_id }}
+          security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
+          iam-role-name: github-runner-role
+          aws-resource-tags: >
+            [
+              {"Key": "Name", "Value": "github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+
+
+  # Create ECR repository
+  create_ecr_repository:
+    name: Create ECR repository
+    needs: 
+      - deploy_aws_infrastructure
+      - start_runner
+    if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
+    runs-on: self-hosted
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -200,9 +237,10 @@ jobs:
     name: Build and push Docker image to ECR
     needs:
       - deploy_aws_infrastructure
+      - start_runner
       - create_ecr_repository
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -255,9 +293,10 @@ jobs:
     name: Create environment file and export to S3 
     needs:
       - deploy_aws_infrastructure
+      - start_runner
       - build_and_push_image
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -295,9 +334,10 @@ jobs:
     name: Migrate data into RDS database with Flyway
     needs:
       - deploy_aws_infrastructure
+      - start_runner
       - build_and_push_image
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     env:
       FLYWAY_VERSION: 9.22.3
     steps:
@@ -347,3 +387,31 @@ jobs:
             -password=${{ env.FLYWAY_PASSWORD }} \
             -locations=${{ env.FLYWAY_LOCATION }} migrate
         continue-on-error: true
+
+
+  # Stop self-hosted EC2 runner
+  stop_runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start_runner
+      - create_ecr_repository
+      - build_and_push_image
+      - export_env_variables
+      - migrate_data
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start_runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start_runner.outputs.ec2-instance-id }}
