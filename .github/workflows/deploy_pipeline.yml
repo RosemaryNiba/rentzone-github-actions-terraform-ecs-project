@@ -348,14 +348,16 @@ jobs:
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: self-hosted
     env:
-      FLYWAY_VERSION: 9.22.3
+      FLYWAY_VERSION: 8.5.13
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Download Flyway
         run: |
-          wget -qO- https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${{ env.FLYWAY_VERSION }}/flyway-commandline-${{ env.FLYWAY_VERSION }}-linux-x64.tar.gz | tar xvz && sudo ln -s `pwd`/flyway-${{ env.FLYWAY_VERSION }}/flyway /usr/local/bin 
+          wget https://repo1.maven.org/maven2/org/flywaydb/flyway-commandline/${{ env.FLYWAY_VERSION }}/flyway-commandline-${{ env.FLYWAY_VERSION }}-linux-x64.tar.gz
+          tar -xzf flyway-commandline-${{ env.FLYWAY_VERSION }}-linux-x64.tar.gz
+          sudo ln -s $(pwd)/flyway-${{ env.FLYWAY_VERSION }}/flyway /usr/local/bin/flyway 
 
       - name: Remove the placeholder (sql) directory
         run: |
