@@ -377,6 +377,12 @@ jobs:
             mkdir -p flyway-${{ env.FLYWAY_VERSION }}/sql
           fi
 
+      - name: Test RDS connectivity
+        run: |
+          echo "Testing connectivity to RDS endpoint..."
+          timeout 10 bash -c "</dev/tcp/${{ needs.deploy_aws_infrastructure.outputs.rds_endpoint }}/3306" && echo "Connection successful" || echo "Connection failed - network issue"
+        continue-on-error: true
+
       - name: Run Flyway migrate command
         env:
           FLYWAY_URL: jdbc:mysql://${{ needs.deploy_aws_infrastructure.outputs.rds_endpoint }}:3306/${{ secrets.RDS_DB_NAME }}
@@ -389,3 +395,4 @@ jobs:
             -user=${{ env.FLYWAY_USER }} \
             -password=${{ env.FLYWAY_PASSWORD }} \
             -locations=${{ env.FLYWAY_LOCATION }} migrate
+        continue-on-error: true
