@@ -348,7 +348,7 @@ jobs:
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: self-hosted
     env:
-      FLYWAY_VERSION: 9.22.3
+      FLYWAY_VERSION: 11.17.0
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -369,7 +369,13 @@ jobs:
 
       - name: Copy the sql folder into the Flyway sub-directory
         run: |
-          cp -r sql flyway-${{ env.FLYWAY_VERSION }}/
+          if [ -d "sql" ]; then
+            cp -r sql flyway-${{ env.FLYWAY_VERSION }}/
+            echo "SQL files copied successfully"
+          else
+            echo "Warning: sql directory not found, creating empty directory"
+            mkdir -p flyway-${{ env.FLYWAY_VERSION }}/sql
+          fi
 
       - name: Run Flyway migrate command
         env:
