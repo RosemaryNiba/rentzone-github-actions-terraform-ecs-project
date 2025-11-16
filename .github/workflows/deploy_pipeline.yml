@@ -394,7 +394,7 @@ jobs:
     needs:
       - start_runner
     runs-on: ubuntu-latest
-    if: always() && needs.start_runner.result != 'skipped'
+    if: always()
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
