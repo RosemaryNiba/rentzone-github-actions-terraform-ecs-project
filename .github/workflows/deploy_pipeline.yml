@@ -348,7 +348,7 @@ jobs:
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: self-hosted
     env:
-      FLYWAY_VERSION: 8.5.13
+      FLYWAY_VERSION: 9.22.3
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
