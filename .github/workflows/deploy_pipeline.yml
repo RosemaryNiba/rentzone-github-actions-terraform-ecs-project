@@ -426,6 +426,12 @@ jobs:
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start_runner.outputs.label }}
           ec2-instance-id: ${{ needs.start_runner.outputs.ec2-instance-id }}
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          ec2-image-id: ami-02ebc78c2878912fd
+          ec2-instance-type: t3.micro
+          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.private_data_subnet_az1_id }}
+          security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
+          aws-resource-tags: >
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
