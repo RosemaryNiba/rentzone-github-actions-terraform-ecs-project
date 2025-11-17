@@ -216,7 +216,7 @@ jobs:
         with:
           mode: start
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          ec2-image-id: ami-0230bd60aa48260c6
+          ec2-image-id: ami-02ebc78c2878912fd
           ec2-instance-type: t3.micro
           subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.public_subnet_az1_id }}
           security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
@@ -225,6 +225,11 @@ jobs:
               {"Key": "Name", "Value": "github-runner"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
+
+      outputs:
+        label: ${{ steps.start-ec2-runner.outputs.label }}
+        ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }} 
+        
 
 
   # Create ECR repository
@@ -404,7 +409,7 @@ jobs:
   # Stop self-hosted EC2 runner
   stop_runner:
     name: Stop self-hosted EC2 runner
-    needs: 
+    needs:
       - build_and_push_image
       - export_env_variables
       - migrate_data
