@@ -201,7 +201,7 @@ jobs:
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           ec2-image-id: ami-0230bd60aa48260c6
           ec2-instance-type: t3.micro
-          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.private_data_subnet_az1_id }}
+          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.public_subnet_az1_id }}
           security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
           aws-resource-tags: >
             [

@@ -26,6 +26,11 @@ output "private_data_subnet_az1_id" {
   value = aws_subnet.private_data_subnet_az1.id
 }
 
+# public subnet az1 id
+output "public_subnet_az1_id" {
+  value = aws_subnet.public_subnet_az1.id
+}
+
 # runner security group id
 output "runner_security_group_id" {
   value = aws_security_group.runner_security_group.id 
