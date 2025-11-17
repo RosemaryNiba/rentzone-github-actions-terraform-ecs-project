@@ -8,7 +8,7 @@ env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}                                                                                 
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: us-east-1
-  TERRAFORM_ACTION: apply
+  TERRAFORM_ACTION: destroy
   GITHUB_USERNAME: RosemaryNiba
   REPOSITORY_NAME: application-codes
   WEB_FILE_ZIP: rentzone.zip
@@ -252,6 +252,7 @@ jobs:
   build_and_push_image:
     name: Build and push Docker image to ECR
     needs:
+      - deploy_aws_infrastructure
       - start_runner
       - create_ecr_repository
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
@@ -404,6 +405,7 @@ jobs:
   stop_runner:
     name: Stop self-hosted EC2 runner
     needs: 
+      - start_runner
       - export_env_variables
       - migrate_data
     runs-on: ubuntu-latest
