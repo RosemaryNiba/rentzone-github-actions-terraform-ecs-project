@@ -189,9 +189,7 @@ jobs:
       - deploy_aws_infrastructure
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
-    outputs:
-      label: ${{ steps.start-ec2-runner.outputs.label }}
-      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+    
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -218,14 +216,13 @@ jobs:
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           ec2-image-id: ami-02ebc78c2878912fd
           ec2-instance-type: t3.micro
-          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.public_subnet_az1_id }}
+          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.private_data_subnet_az1_id }}
           security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
           aws-resource-tags: >
             [
-              {"Key": "Name", "Value": "github-runner"},
+              {"Key": "Name", "Value": "ec2-github-runner"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
-
       outputs:
         label: ${{ steps.start-ec2-runner.outputs.label }}
         ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }} 
