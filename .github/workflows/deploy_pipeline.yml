@@ -189,7 +189,9 @@ jobs:
       - deploy_aws_infrastructure
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
-    
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -223,11 +225,6 @@ jobs:
               {"Key": "Name", "Value": "ec2-github-runner"},
               {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
             ]
-      outputs:
-        label: ${{ steps.start-ec2-runner.outputs.label }}
-        ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }} 
-        
-
 
   # Create ECR repository
   create_ecr_repository:
