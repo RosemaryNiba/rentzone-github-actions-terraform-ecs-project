@@ -8,7 +8,7 @@ env:
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}                                                                                 
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: us-east-1
-  TERRAFORM_ACTION: destroy
+  TERRAFORM_ACTION: apply
   GITHUB_USERNAME: RosemaryNiba
   REPOSITORY_NAME: application-codes
   WEB_FILE_ZIP: rentzone.zip
@@ -405,7 +405,7 @@ jobs:
   stop_runner:
     name: Stop self-hosted EC2 runner
     needs: 
-      - start_runner
+      - build_and_push_image
       - export_env_variables
       - migrate_data
     runs-on: ubuntu-latest
