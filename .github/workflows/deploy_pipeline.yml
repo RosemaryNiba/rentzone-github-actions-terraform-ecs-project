@@ -187,7 +187,6 @@ jobs:
     name: Start self-hosted EC2 runner
     needs: 
       - deploy_aws_infrastructure
-      - create_ecr_repository
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
     outputs:
@@ -243,7 +242,6 @@ jobs:
   build_and_push_image:
     name: Build and push Docker image to ECR
     needs:
-      - deploy_aws_infrastructure
       - start_runner
       - create_ecr_repository
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
@@ -338,7 +336,7 @@ jobs:
   migrate_data:
     name: Migrate data into RDS database with Flyway
     needs:
-      - export_env_variables
+      - build_and_push_image
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: self-hosted
     env:
@@ -395,7 +393,8 @@ jobs:
   # Stop self-hosted EC2 runner
   stop_runner:
     name: Stop self-hosted EC2 runner
-    needs: start_runner
+    needs: 
+      - export_env_variables
     runs-on: ubuntu-latest
     if: always() && (needs.start_runner.result == 'success' || needs.start_runner.result == 'failure')
     steps:
