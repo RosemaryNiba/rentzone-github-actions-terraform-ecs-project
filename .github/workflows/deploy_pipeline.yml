@@ -395,11 +395,9 @@ jobs:
   # Stop self-hosted EC2 runner
   stop_runner:
     name: Stop self-hosted EC2 runner
-    needs:
-      - deploy_aws_infrastructure
-      - start_runner
+    needs: start_runner
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && (needs.start_runner.result == 'success' || needs.start_runner.result == 'failure')
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
