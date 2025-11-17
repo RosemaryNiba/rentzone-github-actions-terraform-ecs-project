@@ -395,8 +395,7 @@ jobs:
   # Stop self-hosted EC2 runner
   stop_runner:
     name: Stop self-hosted EC2 runner
-    needs:
-      - start_runner
+    needs: deploy_aws_infrastructure
     runs-on: ubuntu-latest
     if: always()
     steps:
