@@ -114,6 +114,13 @@ jobs:
           PRIVATE_DATA_SUBNET_AZ1_ID_VALUE=$(terraform output -raw private_data_subnet_az1_id | grep -Eo "^[^:]+" | tail -n 1)
           echo "PRIVATE_DATA_SUBNET_AZ1_ID=$PRIVATE_DATA_SUBNET_AZ1_ID_VALUE" >> $GITHUB_ENV
 
+      - name: Get Terraform output public subnet az1 id
+        if: env.TERRAFORM_ACTION == 'apply'
+        working-directory: ./iac/iac
+        run: |
+          PUBLIC_SUBNET_AZ1_ID_VALUE=$(terraform output -raw public_subnet_az1_id | grep -Eo "^[^:]+" | tail -n 1)
+          echo "PUBLIC_SUBNET_AZ1_ID=$PUBLIC_SUBNET_AZ1_ID_VALUE" >> $GITHUB_ENV
+
       - name: Get Terraform output runner security group id
         if: env.TERRAFORM_ACTION == 'apply'
         working-directory: ./iac/iac
@@ -166,6 +173,7 @@ jobs:
       rds_endpoint: ${{ env.RDS_ENDPOINT }}
       image_tag: ${{ env.IMAGE_TAG }}
       private_data_subnet_az1_id: ${{ env.PRIVATE_DATA_SUBNET_AZ1_ID }}
+      public_subnet_az1_id: ${{ env.PUBLIC_SUBNET_AZ1_ID }}
       runner_security_group_id: ${{ env.RUNNER_SECURITY_GROUP_ID }}
       task_definition_name: ${{ env.TASK_DEFINITION_NAME }}
       ecs_cluster_name: ${{ env.ECS_CLUSTER_NAME }}
@@ -388,7 +396,7 @@ jobs:
   stop_runner:
     name: Stop self-hosted EC2 runner
     needs:
-      - migrate_data
+      - start_runner
     runs-on: ubuntu-latest
     if: always()
     steps:
