@@ -308,6 +308,8 @@ jobs:
     name: Create environment file and export to S3 
     needs:
       - build_and_push_image
+      - start_runner
+      - deploy_aws_infrastructure
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
     steps:
