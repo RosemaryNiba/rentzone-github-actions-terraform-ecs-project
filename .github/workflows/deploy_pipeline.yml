@@ -9,6 +9,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: us-east-1
   TERRAFORM_ACTION: apply
+  TERRAFORM_CLEAN: destroys
   GITHUB_USERNAME: RosemaryNiba
   REPOSITORY_NAME: application-codes
   WEB_FILE_ZIP: rentzone.zip
@@ -426,5 +427,56 @@ jobs:
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start_runner.outputs.label }}
           ec2-instance-id: ${{ needs.start_runner.outputs.ec2-instance-id }}
+
+  # Clean AWS infrastructure
+  destroy_aws_infrastructure:
+    name: Clean AWS infrastructure
+    needs: stop_runner
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.13.5
+
+      - name: Configure AWS credentials for Terraform
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Force unlock Terraform state
+        working-directory: ./iac/iac
+        run: |
+          terraform force-unlock -force 33493bee-ecf4-f860-1a36-fffbaf4b6dff || echo "Lock not found or already released"
+        continue-on-error: true
+
+      - name: Run Terraform initialize
+        working-directory: ./iac/iac
+        run: terraform init -lock=false
+
+      - name: Pre-destroy cleanup
+        if: env.TERRAFORM_CLEAN == 'destroy'
+        run: |
+          echo "Starting pre-destroy cleanup..."
+          # Delete RDS instance
+          aws rds delete-db-instance --db-instance-identifier app-db --skip-final-snapshot --delete-automated-backups || echo "RDS instance not found"
+          # Delete ECS services
+          aws ecs update-service --cluster rentzone-dev-cluster --service rentzone-dev-service --desired-count 0 || echo "ECS service not found"
+          aws ecs delete-service --cluster rentzone-dev-cluster --service rentzone-dev-service --force || echo "ECS service not found"
+          # Wait for RDS deletion to complete
+          echo "Waiting for RDS instance to be fully deleted..."
+          aws rds wait db-instance-deleted --db-instance-identifier app-db || echo "RDS instance already deleted"
+          echo "RDS deletion complete, proceeding with Terraform destroy"
+        continue-on-error: true
+
+      - name: Run Terraform destroy
+        if: env.TERRAFORM_CLEAN == 'destroy'  
+        working-directory: ./iac/iac
+        run: terraform destroy -auto-approve -lock=false
 
             
