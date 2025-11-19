@@ -247,8 +247,8 @@ jobs:
         env:
           IMAGE_NAME: ${{ needs.deploy_aws_infrastructure.outputs.image_name }}
         run: |
-          aws ec2 stop-instances --instance-ids  ${{ needs.start_runner.outputs.ec2-instance-id }} || echo "Repository already exists"  
-          aws ec2 wait instance-stopped --instance-ids  ${{ needs.start_runner.outputs.ec2-instance-id }} || echo "Repository already exists" 
+          aws ec2 stop-instances --instance-ids  i-0cd7a768c714114cc ${{ needs.start_runner.outputs.ec2-instance-id }} || echo "Repository already exists"  
+          aws ec2 wait instance-stopped --instance-ids  i-0cd7a768c714114cc ${{ needs.start_runner.outputs.ec2-instance-id }} || echo "Repository already exists" 
 
       - name: Stop EC2 runner
         if: env.TERRAFORM_STOP == 'never'
