@@ -9,6 +9,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: us-east-1
   TERRAFORM_ACTION: apply
+  TERRAFORM_STOP: ever
   TERRAFORM_CLEAN: destroys
   GITHUB_USERNAME: RosemaryNiba
   REPOSITORY_NAME: application-codes
@@ -421,6 +422,7 @@ jobs:
           aws-region: us-east-1
 
       - name: Stop EC2 instance
+        if: env.TERRAFORM_STOP == 'ever'
         env:
           IMAGE_NAME: ${{ needs.deploy_aws_infrastructure.outputs.image_name }}
         run: |
@@ -428,15 +430,13 @@ jobs:
           aws ec2 wait instance-stopped --instance-ids  ${{  needs.start_runner.outputs.ec2-instance-id  }} 
 
       - name: Stop EC2 runner
-        if: env.TERRAFORM_CLEAN == 'never'
+        if: env.TERRAFORM_STOP == 'never'
         uses: machulav/ec2-github-runner@v2
         with:
           mode: stop
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start_runner.outputs.label }}
           ec2-instance-id: ${{ needs.start_runner.outputs.ec2-instance-id }}
-  
-
 
   # Clean AWS infrastructure
   destroy_aws_infrastructure:
