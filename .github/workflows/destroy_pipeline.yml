@@ -372,3 +372,76 @@ jobs:
             terraform refresh -lock=false || echo "Refresh failed"
             terraform destroy -auto-approve -lock=false || echo "Second destroy failed"
           }
+
+      - name: Final VPC cleanup
+        if: env.TERRAFORM_CLEAN == 'destroy'
+        run: |
+          echo "Performing final VPC cleanup..."
+          VPC_ID="vpc-03077a207736bb1eb"
+          
+          # Check what's still attached to the VPC
+          echo "Checking remaining VPC dependencies..."
+          
+          # Delete any remaining network interfaces
+          aws ec2 describe-network-interfaces --filters "Name=vpc-id,Values=$VPC_ID" --query 'NetworkInterfaces[].NetworkInterfaceId' --output text | while read eni; do
+            if [ -n "$eni" ]; then
+              echo "Deleting ENI: $eni"
+              aws ec2 delete-network-interface --network-interface-id $eni || echo "Failed to delete ENI $eni"
+            fi
+          done
+          
+          # Force delete security groups
+          aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" --query 'SecurityGroups[?GroupName!=`default`].GroupId' --output text | while read sg; do
+            if [ -n "$sg" ]; then
+              echo "Force deleting security group: $sg"
+              # Remove all rules first
+              aws ec2 describe-security-groups --group-ids $sg --query 'SecurityGroups[0].IpPermissions' --output json | jq -r '.[] | @base64' | while read rule; do
+                echo $rule | base64 -d | jq -c '.' | xargs -I {} aws ec2 revoke-security-group-ingress --group-id $sg --ip-permissions '{}' || echo "Rule removal failed"
+              done
+              aws ec2 describe-security-groups --group-ids $sg --query 'SecurityGroups[0].IpPermissionsEgress' --output json | jq -r '.[] | @base64' | while read rule; do
+                echo $rule | base64 -d | jq -c '.' | xargs -I {} aws ec2 revoke-security-group-egress --group-id $sg --ip-permissions '{}' || echo "Rule removal failed"
+              done
+              aws ec2 delete-security-group --group-id $sg || echo "Failed to delete SG $sg"
+            fi
+          done
+          
+          # Delete route table associations and routes
+          aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" --query 'RouteTables[?Associations[0].Main!=`true`].RouteTableId' --output text | while read rt; do
+            if [ -n "$rt" ]; then
+              echo "Processing route table: $rt"
+              # Delete associations
+              aws ec2 describe-route-tables --route-table-ids $rt --query 'RouteTables[0].Associations[?Main!=`true`].RouteTableAssociationId' --output text | while read assoc; do
+                aws ec2 disassociate-route-table --association-id $assoc || echo "Failed to disassociate $assoc"
+              done
+              # Delete custom routes
+              aws ec2 describe-route-tables --route-table-ids $rt --query 'RouteTables[0].Routes[?Origin!=`CreateVpc`].DestinationCidrBlock' --output text | while read dest; do
+                aws ec2 delete-route --route-table-id $rt --destination-cidr-block $dest || echo "Failed to delete route $dest"
+              done
+              aws ec2 delete-route-table --route-table-id $rt || echo "Failed to delete RT $rt"
+            fi
+          done
+          
+          # Delete subnets
+          aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[].SubnetId' --output text | while read subnet; do
+            if [ -n "$subnet" ]; then
+              echo "Deleting subnet: $subnet"
+              aws ec2 delete-subnet --subnet-id $subnet || echo "Failed to delete subnet $subnet"
+            fi
+          done
+          
+          # Detach and delete internet gateways
+          aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query 'InternetGateways[].InternetGatewayId' --output text | while read igw; do
+            if [ -n "$igw" ]; then
+              echo "Detaching and deleting IGW: $igw"
+              aws ec2 detach-internet-gateway --internet-gateway-id $igw --vpc-id $VPC_ID || echo "Failed to detach IGW $igw"
+              aws ec2 delete-internet-gateway --internet-gateway-id $igw || echo "Failed to delete IGW $igw"
+            fi
+          done
+          
+          # Wait and try to delete VPC
+          sleep 30
+          echo "Attempting final VPC deletion..."
+          aws ec2 delete-vpc --vpc-id $VPC_ID || echo "VPC deletion still failed - manual cleanup required"
+          
+          echo "Final cleanup complete"
+        continue-on-error: true
