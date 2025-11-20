@@ -62,6 +62,18 @@ jobs:
         working-directory: ./iac/iac
         run: terraform init -lock=false
 
+      - name: Pre-apply cleanup
+        if: env.TERRAFORM_ACTION == 'apply'
+        run: |
+          echo "Cleaning up conflicting resources..."
+          # Delete conflicting subnets
+          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.0.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
+          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.1.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
+          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.2.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
+          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.3.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
+          echo "Cleanup complete"
+        continue-on-error: true
+
       - name: Pre-destroy cleanup
         if: env.TERRAFORM_ACTION == 'destroy'
         run: |
