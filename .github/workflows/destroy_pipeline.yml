@@ -62,18 +62,6 @@ jobs:
         working-directory: ./iac/iac
         run: terraform init -lock=false
 
-      - name: Pre-apply cleanup
-        if: env.TERRAFORM_ACTION == 'apply'
-        run: |
-          echo "Cleaning up conflicting resources..."
-          # Delete conflicting subnets
-          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.0.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
-          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.1.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
-          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.2.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
-          aws ec2 describe-subnets --filters "Name=cidr-block,Values=10.0.3.0/24" --query 'Subnets[].SubnetId' --output text | xargs -r aws ec2 delete-subnet --subnet-id || echo "Subnet not found"
-          echo "Cleanup complete"
-        continue-on-error: true
-
       - name: Pre-destroy cleanup
         if: env.TERRAFORM_ACTION == 'destroy'
         run: |
@@ -196,7 +184,7 @@ jobs:
       env_file_bucket_name: ${{ env.ENV_FILE_BUCKET_NAME }}
 
 
-  # Start self-hosted EC2 runner (Mock)
+  # Start self-hosted EC2 runner
   start_runner:
     name: Start self-hosted EC2 runner
     needs: 
@@ -204,30 +192,72 @@ jobs:
     if: needs.deploy_aws_infrastructure.outputs.terraform_action != 'destroy'
     runs-on: ubuntu-latest
     outputs:
-      label: ${{ steps.mock-runner.outputs.label }}
-      ec2-instance-id: ${{ steps.mock-runner.outputs.ec2-instance-id }}
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
     steps:
-      - name: Mock EC2 runner start
-        id: mock-runner
-        run: |
-          echo "Simulating EC2 runner start..."
-          echo "label=self-hosted-mock-$(date +%s)" >> $GITHUB_OUTPUT
-          echo "ec2-instance-id=i-mock$(date +%s)" >> $GITHUB_OUTPUT
-          echo "EC2 runner simulation completed successfully"
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
 
-  # Stop self-hosted EC2 runner (Mock)
+      - name: Check for running EC2 runner
+        run: |
+          instances=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=ec2-github-runner" "Name=instance-state-name,Values=running" --query 'Reservations[].Instances[].InstanceId' --output text)
+          if [ -n "$instances" ]; then
+            echo "runner-running=true" >> $GITHUB_ENV
+          else
+            echo "runner-running=false" >> $GITHUB_ENV
+          fi
+
+      - name: Start EC2 runner
+        if: env.runner-running != 'true'
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          ec2-image-id: ami-0fa3fe0fa7920f68e 
+          ec2-instance-type: t3.micro
+          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.private_data_subnet_az1_id }}
+          security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
+          aws-resource-tags: >
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"},
+              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
+            ]
+
+  # Stop self-hosted EC2 runner
   stop_runner:
     name: Stop self-hosted EC2 runner
     needs: start_runner
     runs-on: ubuntu-latest
-    if: always()
+    if: always() && (needs.start_runner.result == 'success' || needs.start_runner.result == 'failure')
     steps:
-      - name: Mock EC2 runner stop
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Stop EC2 instance
+        if: env.TERRAFORM_STOP == 'ever'
+        env:
+          IMAGE_NAME: ${{ needs.deploy_aws_infrastructure.outputs.image_name }}
         run: |
-          echo "Simulating EC2 runner stop..."
-          echo "Runner label: ${{ needs.start_runner.outputs.label }}"
-          echo "Instance ID: ${{ needs.start_runner.outputs.ec2-instance-id }}"
-          echo "EC2 runner stop simulation completed successfully"
+          aws ec2 stop-instances --instance-ids  i-0cfa85a307855138a ${{ needs.start_runner.outputs.ec2-instance-id }} || echo "Repository already exists"  
+          aws ec2 wait instance-stopped --instance-ids  i-0cfa85a307855138a ${{ needs.start_runner.outputs.ec2-instance-id }} || echo "Repository already exists" 
+
+      - name: Stop EC2 runner
+        if: env.TERRAFORM_STOP == 'never'
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start_runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start_runner.outputs.ec2-instance-id }}
 
   # Clean AWS infrastructure
   destroy_aws_infrastructure:
