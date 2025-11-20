@@ -62,6 +62,24 @@ jobs:
         working-directory: ./iac/iac
         run: terraform init -lock=false
 
+      - name: Pre-apply cleanup
+        if: env.TERRAFORM_ACTION == 'apply'
+        run: |
+          echo "Starting pre-apply cleanup of existing resources..."
+          # Delete existing target groups
+          aws elbv2 delete-target-group --target-group-arn $(aws elbv2 describe-target-groups --names rosezone-prod-tg --query 'TargetGroups[0].TargetGroupArn' --output text) || echo "Target group not found"
+          # Delete existing IAM policies and roles
+          aws iam detach-role-policy --role-name rosezone-prod-ecs-task-execution-role --policy-arn $(aws iam list-policies --query 'Policies[?PolicyName==`rosezone-prod-ecs-task-execution-role-policy`].Arn' --output text) || echo "Policy not attached"
+          aws iam delete-policy --policy-arn $(aws iam list-policies --query 'Policies[?PolicyName==`rosezone-prod-ecs-task-execution-role-policy`].Arn' --output text) || echo "Policy not found"
+          aws iam delete-role --role-name rosezone-prod-ecs-task-execution-role || echo "Role not found"
+          # Delete existing log groups
+          aws logs delete-log-group --log-group-name /ecs/rosezone-prod-td || echo "Log group not found"
+          # Delete existing S3 bucket
+          aws s3 rm s3://rosezone-ro-rentzone-app-env-file-bucket --recursive || echo "Bucket not found"
+          aws s3api delete-bucket --bucket rosezone-ro-rentzone-app-env-file-bucket || echo "Bucket not found"
+          echo "Pre-apply cleanup complete"
+        continue-on-error: true
+
       - name: Pre-destroy cleanup
         if: env.TERRAFORM_ACTION == 'destroy'
         run: |
