@@ -220,8 +220,12 @@ jobs:
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
           ec2-image-id: ami-0fa3fe0fa7920f68e 
           ec2-instance-type: t3.micro
-          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.private_data_subnet_az1_id }}
+          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.public_subnet_az1_id }}
           security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
+          runner-home-dir: /home/ubuntu/actions-runner
+          pre-runner-script: |
+            sudo apt-get update
+            sudo apt-get install -y curl
           aws-resource-tags: >
             [
               {"Key": "Name", "Value": "ec2-github-runner"},
