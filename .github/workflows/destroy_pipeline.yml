@@ -229,26 +229,22 @@ jobs:
         if: env.runner-running != 'true'
         id: start-ec2-runner
         uses: machulav/ec2-github-runner@v2
-        timeout-minutes: 10
+        timeout-minutes: 5
         continue-on-error: true
         with:
           mode: start
           github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          ec2-image-id: ami-0c02fb55956c7d316
+          ec2-image-id: ami-0fa3fe0fa7920f68e
           ec2-instance-type: t3.micro
           subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.public_subnet_az1_id }}
           security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
-          aws-resource-tags: >
-            [
-              {"Key": "Name", "Value": "ec2-github-runner"},
-              {"Key": "GitHubRepository", "Value": "${{ github.repository }}"}
-            ]
+          aws-resource-tags: '[{"Key":"Name","Value":"ec2-github-runner"},{"Key":"Project","Value":"rentzone"}]'
 
       - name: Mock runner fallback
-        if: steps.start-ec2-runner.outcome == 'failure'
+        if: always() && (steps.start-ec2-runner.outcome == 'failure' || steps.start-ec2-runner.outcome == 'cancelled')
         id: mock-fallback
         run: |
-          echo "EC2 runner failed, using mock outputs"
+          echo "EC2 runner failed or timed out, using mock outputs"
           echo "label=mock-runner-$(date +%s)" >> $GITHUB_OUTPUT
           echo "ec2-instance-id=i-mock$(date +%s)" >> $GITHUB_OUTPUT
 
