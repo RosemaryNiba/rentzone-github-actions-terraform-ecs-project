@@ -68,8 +68,8 @@ jobs:
     needs: deploy_aws_infrastructure
     runs-on: ubuntu-latest
     outputs:
-      label: ${{ steps.start-ec2-runner.outputs.label }}
-      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+      label: ${{ steps.mock-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.mock-runner.outputs.ec2-instance-id }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -78,16 +78,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Start EC2 runner
-        id: start-ec2-runner
-        uses: machulav/ec2-github-runner@v2
-        with:
-          mode: start
-          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          ec2-image-id: ami-0c02fb55956c7d316
-          ec2-instance-type: t3.micro
-          subnet-id: ${{ needs.deploy_aws_infrastructure.outputs.public_subnet_az1_id }}
-          security-group-id: ${{ needs.deploy_aws_infrastructure.outputs.runner_security_group_id }}
+      - name: Mock EC2 runner start
+        id: mock-runner
+        run: |
+          echo "Simulating EC2 runner start..."
+          echo "label=mock-runner-$(date +%s)" >> $GITHUB_OUTPUT
+          echo "ec2-instance-id=i-mock$(date +%s)" >> $GITHUB_OUTPUT
+          echo "EC2 runner simulation completed"
 
   # 4. Stop self-hosted EC2 runner
   stop_runner:
@@ -103,13 +100,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Stop EC2 runner
-        uses: machulav/ec2-github-runner@v2
-        with:
-          mode: stop
-          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start_runner.outputs.label }}
-          ec2-instance-id: ${{ needs.start_runner.outputs.ec2-instance-id }}
+      - name: Mock EC2 runner stop
+        run: |
+          echo "Simulating EC2 runner stop..."
+          echo "Runner label: ${{ needs.start_runner.outputs.label }}"
+          echo "Instance ID: ${{ needs.start_runner.outputs.ec2-instance-id }}"
+          echo "EC2 runner stop simulation completed"
 
   # 5. Clean AWS infrastructure
   destroy_aws_infrastructure:
