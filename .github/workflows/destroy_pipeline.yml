@@ -295,91 +295,72 @@ jobs:
         working-directory: ./iac/iac
         run: terraform init -lock=false
 
-      - name: Pre-destroy cleanup
+      - name: Force delete all AWS resources
         if: env.TERRAFORM_CLEAN == 'destroy'
         run: |
-          echo "Starting comprehensive pre-destroy cleanup..."
+          echo "Force deleting all AWS resources to clear VPC dependencies..."
           
-          # Delete ECS services first
-          aws ecs update-service --cluster rentzone-dev-cluster --service rentzone-dev-service --desired-count 0 || echo "ECS service not found"
-          aws ecs delete-service --cluster rentzone-dev-cluster --service rentzone-dev-service --force || echo "ECS service not found"
+          # Get VPC ID
+          VPC_ID=$(aws ec2 describe-vpcs --filters "Name=cidr-block,Values=10.0.0.0/16" --query 'Vpcs[0].VpcId' --output text 2>/dev/null || echo "none")
+          echo "Target VPC: $VPC_ID"
           
-          # Delete RDS instance
-          aws rds delete-db-instance --db-instance-identifier app-db --skip-final-snapshot --delete-automated-backups || echo "RDS instance not found"
-          
-          # Delete Load Balancers and Target Groups
-          albs=$(aws elbv2 describe-load-balancers --query 'LoadBalancers[].LoadBalancerArn' --output text)
-          for alb in $albs; do
-            aws elbv2 delete-load-balancer --load-balancer-arn $alb || echo "ALB not found"
-          done
-          
-          # Delete Target Groups
-          tgs=$(aws elbv2 describe-target-groups --query 'TargetGroups[].TargetGroupArn' --output text)
-          for tg in $tgs; do
-            aws elbv2 delete-target-group --target-group-arn $tg || echo "Target group not found"
-          done
-          
-          # Terminate all EC2 instances
-          instances=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running,stopped" --query 'Reservations[].Instances[].InstanceId' --output text)
-          if [ -n "$instances" ]; then
-            aws ec2 terminate-instances --instance-ids $instances || echo "No instances to terminate"
-            aws ec2 wait instance-terminated --instance-ids $instances || echo "Instance termination wait failed"
+          # Delete all resources in the VPC
+          if [ "$VPC_ID" != "none" ] && [ "$VPC_ID" != "null" ]; then
+            # Delete ECS services and clusters
+            aws ecs list-services --cluster rentzone-dev-cluster --query 'serviceArns[]' --output text | xargs -r -I {} aws ecs update-service --cluster rentzone-dev-cluster --service {} --desired-count 0 || echo "No ECS services"
+            aws ecs list-services --cluster rentzone-dev-cluster --query 'serviceArns[]' --output text | xargs -r -I {} aws ecs delete-service --cluster rentzone-dev-cluster --service {} --force || echo "No ECS services"
+            aws ecs delete-cluster --cluster rentzone-dev-cluster || echo "No ECS cluster"
+            
+            # Delete RDS instances
+            aws rds describe-db-instances --query 'DBInstances[].DBInstanceIdentifier' --output text | xargs -r -I {} aws rds delete-db-instance --db-instance-identifier {} --skip-final-snapshot --delete-automated-backups || echo "No RDS instances"
+            
+            # Delete Load Balancers
+            aws elbv2 describe-load-balancers --query 'LoadBalancers[].LoadBalancerArn' --output text | xargs -r -I {} aws elbv2 delete-load-balancer --load-balancer-arn {} || echo "No ALBs"
+            
+            # Delete Target Groups
+            aws elbv2 describe-target-groups --query 'TargetGroups[].TargetGroupArn' --output text | xargs -r -I {} aws elbv2 delete-target-group --target-group-arn {} || echo "No target groups"
+            
+            # Terminate EC2 instances in VPC
+            aws ec2 describe-instances --filters "Name=vpc-id,Values=$VPC_ID" "Name=instance-state-name,Values=running,stopped" --query 'Reservations[].Instances[].InstanceId' --output text | xargs -r aws ec2 terminate-instances --instance-ids || echo "No EC2 instances"
+            
+            # Wait for instances to terminate
+            sleep 60
+            
+            # Delete NAT Gateways in VPC
+            aws ec2 describe-nat-gateways --filter "Name=vpc-id,Values=$VPC_ID" "Name=state,Values=available" --query 'NatGateways[].NatGatewayId' --output text | xargs -r -I {} aws ec2 delete-nat-gateway --nat-gateway-id {} || echo "No NAT gateways"
+            
+            # Wait for NAT gateways to delete
+            sleep 120
+            
+            # Delete VPC Endpoints
+            aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=$VPC_ID" --query 'VpcEndpoints[].VpcEndpointId' --output text | xargs -r -I {} aws ec2 delete-vpc-endpoint --vpc-endpoint-id {} || echo "No VPC endpoints"
+            
+            # Delete Network ACL entries and NACLs (except default)
+            aws ec2 describe-network-acls --filters "Name=vpc-id,Values=$VPC_ID" "Name=default,Values=false" --query 'NetworkAcls[].NetworkAclId' --output text | xargs -r -I {} aws ec2 delete-network-acl --network-acl-id {} || echo "No custom NACLs"
+            
+            # Delete Security Group rules and groups (except default)
+            aws ec2 describe-security-groups --filters "Name=vpc-id,Values=$VPC_ID" "Name=group-name,Values=!default" --query 'SecurityGroups[].GroupId' --output text | xargs -r -I {} aws ec2 delete-security-group --group-id {} || echo "No custom security groups"
+            
+            # Disassociate and delete route tables (except main)
+            aws ec2 describe-route-tables --filters "Name=vpc-id,Values=$VPC_ID" "Name=association.main,Values=false" --query 'RouteTables[].RouteTableId' --output text | xargs -r -I {} aws ec2 delete-route-table --route-table-id {} || echo "No custom route tables"
+            
+            # Delete subnets
+            aws ec2 describe-subnets --filters "Name=vpc-id,Values=$VPC_ID" --query 'Subnets[].SubnetId' --output text | xargs -r -I {} aws ec2 delete-subnet --subnet-id {} || echo "No subnets"
+            
+            # Detach and delete internet gateways
+            aws ec2 describe-internet-gateways --filters "Name=attachment.vpc-id,Values=$VPC_ID" --query 'InternetGateways[].InternetGatewayId' --output text | xargs -r -I {} sh -c 'aws ec2 detach-internet-gateway --internet-gateway-id {} --vpc-id '$VPC_ID' && aws ec2 delete-internet-gateway --internet-gateway-id {}' || echo "No IGWs"
+            
+            # Delete VPC peering connections
+            aws ec2 describe-vpc-peering-connections --filters "Name=requester-vpc-info.vpc-id,Values=$VPC_ID" --query 'VpcPeeringConnections[].VpcPeeringConnectionId' --output text | xargs -r -I {} aws ec2 delete-vpc-peering-connection --vpc-peering-connection-id {} || echo "No VPC peering"
+            
+            # Release Elastic IPs
+            aws ec2 describe-addresses --query 'Addresses[].AllocationId' --output text | xargs -r -I {} aws ec2 release-address --allocation-id {} || echo "No EIPs"
+            
+            echo "Waiting for all resources to be deleted..."
+            sleep 180
           fi
           
-          # Delete NAT Gateways
-          nat_gateways=$(aws ec2 describe-nat-gateways --filter "Name=state,Values=available" --query 'NatGateways[].NatGatewayId' --output text)
-          for nat_id in $nat_gateways; do
-            aws ec2 delete-nat-gateway --nat-gateway-id $nat_id || echo "NAT Gateway not found"
-          done
-          
-          # Delete Network Interfaces
-          enis=$(aws ec2 describe-network-interfaces --filters "Name=status,Values=available" --query 'NetworkInterfaces[].NetworkInterfaceId' --output text)
-          for eni in $enis; do
-            aws ec2 delete-network-interface --network-interface-id $eni || echo "ENI not found"
-          done
-          
-          # Delete Security Groups (except default)
-          sgs=$(aws ec2 describe-security-groups --filters "Name=group-name,Values=!default" --query 'SecurityGroups[].GroupId' --output text)
-          for sg in $sgs; do
-            aws ec2 delete-security-group --group-id $sg || echo "Security group not found"
-          done
-          
-          # Delete Route Tables (except main)
-          rts=$(aws ec2 describe-route-tables --filters "Name=association.main,Values=false" --query 'RouteTables[].RouteTableId' --output text)
-          for rt in $rts; do
-            aws ec2 delete-route-table --route-table-id $rt || echo "Route table not found"
-          done
-          
-          # Delete Subnets
-          subnets=$(aws ec2 describe-subnets --query 'Subnets[].SubnetId' --output text)
-          for subnet in $subnets; do
-            aws ec2 delete-subnet --subnet-id $subnet || echo "Subnet not found"
-          done
-          
-          # Delete Internet Gateways
-          igws=$(aws ec2 describe-internet-gateways --filters "Name=attachment.state,Values=available" --query 'InternetGateways[].InternetGatewayId' --output text)
-          for igw in $igws; do
-            vpcs=$(aws ec2 describe-internet-gateways --internet-gateway-ids $igw --query 'InternetGateways[].Attachments[].VpcId' --output text)
-            for vpc in $vpcs; do
-              aws ec2 detach-internet-gateway --internet-gateway-id $igw --vpc-id $vpc || echo "IGW detach failed"
-            done
-            aws ec2 delete-internet-gateway --internet-gateway-id $igw || echo "IGW not found"
-          done
-          
-          # Release Elastic IPs
-          eips=$(aws ec2 describe-addresses --query 'Addresses[].AllocationId' --output text)
-          for eip in $eips; do
-            aws ec2 release-address --allocation-id $eip || echo "EIP not found"
-          done
-          
-          # Wait for resources to be deleted
-          echo "Waiting for RDS instance to be fully deleted..."
-          aws rds wait db-instance-deleted --db-instance-identifier app-db || echo "RDS instance already deleted"
-          
-          echo "Waiting for NAT Gateways to be deleted..."
-          sleep 120
-          
-          echo "Comprehensive cleanup complete"
+          echo "Force cleanup complete"
         continue-on-error: true
 
       - name: Run Terraform destroy
@@ -387,10 +368,7 @@ jobs:
         working-directory: ./iac/iac
         run: |
           terraform destroy -auto-approve -lock=false || {
-            echo "First destroy attempt failed, trying with target approach..."
-            terraform destroy -target=aws_instance -auto-approve -lock=false || echo "Instance destroy failed"
-            terraform destroy -target=aws_db_instance -auto-approve -lock=false || echo "RDS destroy failed"
-            terraform destroy -target=aws_lb -auto-approve -lock=false || echo "ALB destroy failed"
-            terraform destroy -target=aws_nat_gateway -auto-approve -lock=false || echo "NAT destroy failed"
-            terraform destroy -auto-approve -lock=false || echo "Final destroy failed"
+            echo "First destroy failed, trying refresh and destroy again..."
+            terraform refresh -lock=false || echo "Refresh failed"
+            terraform destroy -auto-approve -lock=false || echo "Second destroy failed"
           }
