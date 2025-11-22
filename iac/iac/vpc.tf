@@ -106,7 +106,6 @@ resource "aws_subnet" "private_data_subnet_az1" {
     Name = "${var.project_name}-${var.environment}-private-data-az1"
   }
 }
-
 # create private data subnet az2
 resource "aws_subnet" "private_data_subnet_az2" {
   vpc_id                  = aws_vpc.vpc.id
