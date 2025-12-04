@@ -35,4 +35,4 @@ image_name   = "rentzone-app"
 image_tag    = "latest"
 
 # route-53 variables
-record_name = "www"
+record_name = "wecs"
