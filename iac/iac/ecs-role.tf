@@ -48,13 +48,13 @@ data "aws_iam_policy_document" "ecs_task_execution_policy_document" {
 
 # create iam policy
 resource "aws_iam_policy" "ecs_task_execution_policy" {
-  name   = "${var.project_name}-${var.environment}-ecs-task-execution-role-policy"
+  name   = "${var.project_name}-${var.environment}-ecs-task-execution-role-policy1"
   policy = data.aws_iam_policy_document.ecs_task_execution_policy_document.json
 }
 
 # create an iam role
 resource "aws_iam_role" "ecs_task_execution_role" {
-  name               = "${var.project_name}-${var.environment}-ecs-task-execution-role"
+  name               = "${var.project_name}-${var.environment}-ecs-task-execution-role1"
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
 }
 
