@@ -32,7 +32,7 @@ env_file_name        = "env-variables-file.env"
 # ecs variables
 architecture = "X86_64"
 image_name   = "rentzone-app"
-image_tag    = "latest"
+image_tag    = "1.0.0"
 
 # route-53 variables
 record_name = "wecs"
