@@ -67,6 +67,15 @@ jobs:
         if: env.TERRAFORM_ACTION == 'destroy'
         run: |
           echo "Starting pre-destroy cleanup..."
+          
+          # Terminate ALL EC2 instances
+          echo "Terminating all EC2 instances..."
+          instances=$(aws ec2 describe-instances --filters "Name=instance-state-name,Values=running,stopped" --query 'Reservations[].Instances[].InstanceId' --output text)
+          if [ -n "$instances" ]; then
+            aws ec2 terminate-instances --instance-ids $instances || echo "No instances to terminate"
+            aws ec2 wait instance-terminated --instance-ids $instances || echo "Instance termination wait failed"
+          fi
+          
           # Delete RDS instance
           aws rds delete-db-instance --db-instance-identifier app-db --skip-final-snapshot --delete-automated-backups || echo "RDS instance not found"
           # Delete ECS services
