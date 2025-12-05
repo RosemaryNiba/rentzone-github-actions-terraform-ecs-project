@@ -9,7 +9,7 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: us-east-2
   AWS_AMI_ID: ami-025ca978d4c1d9825
-  TERRAFORM_ACTION: apply
+  TERRAFORM_ACTION: destroy
   TERRAFORM_STOP: ever
   TERRAFORM_CLEAN: destroys
   GITHUB_USERNAME: RosemaryNiba
